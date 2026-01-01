@@ -9,7 +9,7 @@ pub const RECV_BUFFER_SIZE: usize = 8 * 1024 * 1024; // 8MB
 pub const SEND_BUFFER_SIZE: usize = 8 * 1024 * 1024; // 8MB
 
 /// Create an optimized UDP socket for QUIC
-pub fn create_udp_socket(addr: SocketAddr, _reuse_port: bool) -> Result<std::net::UdpSocket> {
+pub fn create_udp_socket(addr: SocketAddr, reuse_port: bool) -> Result<std::net::UdpSocket> {
     let domain = if addr.is_ipv4() {
         Domain::IPV4
     } else {
@@ -84,12 +84,12 @@ pub fn create_tcp_socket(addr: SocketAddr) -> Result<Socket> {
 #[cfg(target_os = "linux")]
 pub fn optimize_socket_linux(fd: std::os::unix::io::RawFd) -> Result<()> {
     use nix::sys::socket::{setsockopt, sockopt};
+    use std::os::fd::BorrowedFd;
 
-    // Enable busy polling for lower latency (requires root)
-    let _ = setsockopt(fd, sockopt::Busy, &50);
+    let fd = unsafe { BorrowedFd::borrow_raw(fd) };
 
     // Set priority for QoS
-    let _ = setsockopt(fd, sockopt::Priority, &6);
+    let _ = setsockopt(&fd, sockopt::Priority, &6);
 
     Ok(())
 }

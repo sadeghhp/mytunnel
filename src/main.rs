@@ -13,6 +13,11 @@ use mytunnel_server::{Config, Server, VERSION};
 /// Application entry point
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Install the ring crypto provider for rustls (required in rustls 0.23+)
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     // Parse command line arguments
     let config_path = std::env::args()
         .nth(1)

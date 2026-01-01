@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
 
+use crate::metrics::METRICS;
 use crate::pool::BufferPool;
 
 /// Maximum number of packets to batch
@@ -143,11 +144,13 @@ impl UdpSocketPool {
 
 /// Batched UDP sender using sendmmsg (Linux only)
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 pub struct BatchedUdpSender {
     socket: std::os::unix::io::RawFd,
 }
 
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 impl BatchedUdpSender {
     /// Create from raw file descriptor
     pub fn from_raw_fd(fd: std::os::unix::io::RawFd) -> Self {

@@ -67,10 +67,6 @@ impl TcpProxy {
         quic_recv: RecvStream,
         tcp_stream: TcpStream,
     ) -> Result<()> {
-        use nix::fcntl::{splice, SpliceFFlags};
-        use nix::unistd::pipe;
-        use std::os::unix::io::RawFd;
-
         // For now, fall back to userspace copy since QUIC streams aren't raw FDs
         // splice() works between socket FDs, but QUIC streams are userspace constructs
         // In a real implementation, we'd use io_uring for async splice
@@ -142,9 +138,11 @@ impl TcpProxy {
 /// Zero-copy splice helper for raw file descriptors
 /// This is used when we have actual socket FDs (e.g., TCP-to-TCP proxy)
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 pub struct SpliceProxy;
 
 #[cfg(target_os = "linux")]
+#[allow(dead_code)]
 impl SpliceProxy {
     /// Splice data between two TCP sockets using kernel-level zero-copy
     pub async fn splice_tcp_to_tcp(
@@ -154,7 +152,7 @@ impl SpliceProxy {
     ) -> std::io::Result<u64> {
         use nix::fcntl::{splice, SpliceFFlags};
         use nix::unistd::pipe;
-        use std::os::fd::BorrowedFd;
+        use std::os::fd::AsRawFd;
 
         let source_fd = source.as_raw_fd();
         let target_fd = target.as_raw_fd();
@@ -168,16 +166,14 @@ impl SpliceProxy {
 
         loop {
             // Source -> Pipe
-            let n = unsafe {
-                splice(
-                    BorrowedFd::borrow_raw(source_fd),
-                    None,
-                    BorrowedFd::borrow_raw(pipe_write),
-                    None,
-                    buffer_size,
-                    flags,
-                )
-            }
+            let n = splice(
+                unsafe { std::os::fd::BorrowedFd::borrow_raw(source_fd) },
+                None,
+                &pipe_write,
+                None,
+                buffer_size,
+                flags,
+            )
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
             if n == 0 {
@@ -187,16 +183,14 @@ impl SpliceProxy {
             // Pipe -> Target
             let mut remaining = n;
             while remaining > 0 {
-                let written = unsafe {
-                    splice(
-                        BorrowedFd::borrow_raw(pipe_read),
-                        None,
-                        BorrowedFd::borrow_raw(target_fd),
-                        None,
-                        remaining,
-                        flags,
-                    )
-                }
+                let written = splice(
+                    &pipe_read,
+                    None,
+                    unsafe { std::os::fd::BorrowedFd::borrow_raw(target_fd) },
+                    None,
+                    remaining,
+                    flags,
+                )
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
                 remaining -= written;
@@ -204,10 +198,6 @@ impl SpliceProxy {
 
             total += n as u64;
         }
-
-        // Close pipe
-        let _ = nix::unistd::close(pipe_read);
-        let _ = nix::unistd::close(pipe_write);
 
         Ok(total)
     }

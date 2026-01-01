@@ -1,0 +1,61 @@
+# MyTunnel Server Configuration
+# Copy this file to config.toml and adjust as needed
+
+[server]
+# Address to bind the QUIC listener
+bind_addr = "0.0.0.0:443"
+# Number of worker threads (0 = auto-detect CPU cores)
+workers = 0
+
+[quic]
+# Maximum concurrent connections
+max_connections = 100000
+# Maximum streams per connection
+max_streams_per_conn = 100
+# Connection idle timeout in seconds
+idle_timeout_secs = 30
+# Maximum UDP payload size (MTU-safe default)
+max_udp_payload = 1350
+# Enable 0-RTT for faster reconnection
+enable_0rtt = true
+# Congestion control algorithm: "bbr" or "cubic"
+congestion_control = "bbr"
+
+[tls]
+# Path to TLS certificate (PEM format)
+cert_path = "/etc/mytunnel/cert.pem"
+# Path to TLS private key (PEM format)
+key_path = "/etc/mytunnel/key.pem"
+# Generate self-signed cert if paths don't exist (dev only)
+auto_generate = true
+
+[pool]
+# Number of pre-allocated buffers (4KB each)
+buffer_count_4k = 16384
+# Number of pre-allocated buffers (16KB each)
+buffer_count_16k = 4096
+# Number of pre-allocated buffers (64KB each)
+buffer_count_64k = 1024
+# Maximum concurrent connection slots
+connection_slots = 100000
+
+[metrics]
+# Enable Prometheus metrics endpoint
+enabled = true
+# Address for metrics HTTP server
+bind_addr = "127.0.0.1:9090"
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+# Output format: "json" or "pretty"
+format = "json"
+
+[limits]
+# Maximum bytes per second per connection (0 = unlimited)
+max_bandwidth_per_conn = 0
+# Global rate limit in connections per second
+max_new_conn_per_sec = 10000
+# Maximum memory usage in MB (0 = unlimited)
+max_memory_mb = 0
+

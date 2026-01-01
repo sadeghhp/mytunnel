@@ -1,0 +1,29 @@
+# Rust build artifacts
+target/
+
+# Configuration files
+config.toml
+.env
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.tmp

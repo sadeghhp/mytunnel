@@ -1,0 +1,48 @@
+[package]
+name = "mytunnel-client"
+version = "0.1.0"
+edition = "2021"
+authors = ["MyTunnel Team"]
+description = "QUIC-based tunnel client with SOCKS5 and HTTP proxy"
+license = "MIT"
+rust-version = "1.75"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full", "parking_lot"] }
+
+# QUIC implementation
+quinn = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+webpki-roots = "0.26"
+
+# Serialization & config
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+# Concurrency
+parking_lot = "0.12"
+
+# Crypto
+ring = "0.17"
+
+# Utilities
+thiserror = "1"
+anyhow = "1"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = 3
+

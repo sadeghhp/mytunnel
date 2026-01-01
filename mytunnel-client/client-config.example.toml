@@ -1,0 +1,35 @@
+# MyTunnel Client Configuration
+# Copy this file to client-config.toml and adjust as needed
+
+[server]
+# Server address (host:port)
+address = "tunnel.example.com:443"
+# Server name for TLS SNI (optional, defaults to host from address)
+# server_name = "tunnel.example.com"
+# Skip TLS certificate verification (INSECURE, dev only!)
+insecure = false
+
+[proxy]
+# SOCKS5 proxy bind address
+socks5_bind = "127.0.0.1:1080"
+# HTTP proxy bind address
+http_bind = "127.0.0.1:8080"
+# Enable SOCKS5 proxy
+socks5_enabled = true
+# Enable HTTP proxy
+http_enabled = true
+
+[quic]
+# Connection idle timeout in seconds
+idle_timeout_secs = 30
+# Enable 0-RTT for faster reconnection
+enable_0rtt = true
+# Maximum concurrent streams
+max_streams = 100
+
+[logging]
+# Log level: trace, debug, info, warn, error
+level = "info"
+# Output format: "json" or "pretty"
+format = "pretty"
+

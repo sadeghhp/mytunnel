@@ -1,11 +1,11 @@
 #!/bin/bash
 #===============================================================================
 # MyTunnel Management Script
-# Version: 1.0.0
+# Version: 1.1.0
 # Description: Build, install, and manage the MyTunnel service locally
 #===============================================================================
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 SCRIPT_NAME=$(basename "$0")
 
 # Paths
@@ -46,11 +46,14 @@ print_usage() {
     echo "  stop      Stop the mytunnel service"
     echo "  restart   Restart the mytunnel service"
     echo "  status    Show service status and information"
+    echo "  logs      Attach to live service logs (Ctrl+C to exit)"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
     echo "  ${SCRIPT_NAME} build"
     echo "  ${SCRIPT_NAME} install"
     echo "  ${SCRIPT_NAME} status"
+    echo "  ${SCRIPT_NAME} logs"
+    echo "  ${SCRIPT_NAME} logs 50      # Show last 50 lines + live"
 }
 
 check_cargo() {
@@ -298,6 +301,31 @@ cmd_status() {
     fi
 }
 
+cmd_logs() {
+    local lines="${1:-100}"
+    
+    echo -e "${BLUE}[LOGS] Attaching to MyTunnel service logs...${NC}"
+    echo -e "${CYAN}MyTunnel Manager v${VERSION}${NC}"
+    echo -e "Showing last ${lines} lines, then following live logs"
+    echo -e "${YELLOW}Press Ctrl+C to exit${NC}"
+    echo ""
+    echo -e "${BLUE}----------------------------------------${NC}"
+    
+    # Check if service exists
+    if ! systemctl list-unit-files mytunnel.service &>/dev/null; then
+        echo -e "${RED}ERROR: mytunnel service not found${NC}"
+        echo -e "${YELLOW}Run '${SCRIPT_NAME} install' first${NC}"
+        exit 1
+    fi
+    
+    # Attach to live logs with journalctl
+    # -u: filter by unit
+    # -f: follow (like tail -f)
+    # -n: number of previous lines to show
+    # --no-pager: don't use pager, stream directly
+    journalctl -u mytunnel -f -n "${lines}" --no-pager
+}
+
 #-------------------------------------------------------------------------------
 # Main Entry Point
 #-------------------------------------------------------------------------------
@@ -329,6 +357,9 @@ case "$COMMAND" in
         ;;
     status)
         cmd_status
+        ;;
+    logs)
+        cmd_logs "$2"
         ;;
     -h|--help|help)
         print_usage

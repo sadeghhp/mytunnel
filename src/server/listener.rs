@@ -147,6 +147,11 @@ impl Server {
         Ok(())
     }
 
+    /// Get the connection manager
+    pub fn connection_manager(&self) -> Arc<ConnectionManager> {
+        self.conn_manager.clone()
+    }
+
     /// Gracefully shutdown the server
     pub async fn shutdown(&self) {
         info!("Initiating graceful shutdown");

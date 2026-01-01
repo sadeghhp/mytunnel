@@ -10,7 +10,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{debug, info, warn};
 
-use super::state::{ConnectionId, ConnectionState};
+use super::state::{ConnectionId, ConnectionInfo, ConnectionState};
 use crate::metrics::METRICS;
 use crate::pool::{ConnectionSlab, SlabHandle};
 
@@ -65,7 +65,7 @@ impl ConnectionManager {
         self.id_to_handle.insert(id, handle);
 
         METRICS.connection_opened();
-        debug!(conn_id = %id, %client_addr, "Connection registered");
+        info!(conn_id = %id, %client_addr, "User connected");
 
         Some(id)
     }
@@ -85,12 +85,13 @@ impl ConnectionManager {
         if let Some((_, handle)) = self.id_to_handle.remove(&id) {
             if let Some(state) = self.connections.remove(handle) {
                 METRICS.connection_closed();
-                debug!(
+                info!(
                     conn_id = %id,
+                    client_addr = %state.client_addr,
                     duration_secs = state.duration().as_secs_f64(),
                     bytes_rx = state.bytes_rx,
                     bytes_tx = state.bytes_tx,
-                    "Connection unregistered"
+                    "User disconnected"
                 );
             }
         }
@@ -127,6 +128,16 @@ impl ConnectionManager {
     /// Get current connection count
     pub fn connection_count(&self) -> usize {
         self.connections.len()
+    }
+
+    /// List all active connections
+    pub fn list_connections(&self) -> Vec<ConnectionInfo> {
+        self.id_to_handle
+            .iter()
+            .filter_map(|entry| {
+                self.connections.get(*entry.value()).map(|state| state.to_info())
+            })
+            .collect()
     }
 
     /// Check if at capacity

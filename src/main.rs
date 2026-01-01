@@ -50,6 +50,18 @@ async fn main() -> Result<()> {
     let config = Arc::new(config);
     let server = Server::new(config.clone()).await?;
 
+    // Start connections API server if metrics enabled
+    if config.metrics.enabled {
+        mytunnel_server::metrics::start_api_server(
+            config.metrics.api_bind_addr,
+            server.connection_manager(),
+        );
+        info!(
+            bind_addr = %config.metrics.api_bind_addr,
+            "Connections API server started"
+        );
+    }
+
     info!(
         bind_addr = %config.server.bind_addr,
         workers = config.server.effective_workers(),

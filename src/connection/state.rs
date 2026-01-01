@@ -1,5 +1,6 @@
 //! Connection state
 
+use serde::Serialize;
 use std::net::SocketAddr;
 use std::time::Instant;
 
@@ -145,5 +146,43 @@ impl ConnectionState {
     pub fn udp_flow_closed(&mut self) {
         self.active_udp_flows = self.active_udp_flows.saturating_sub(1);
     }
+
+    /// Convert to serializable info
+    pub fn to_info(&self) -> ConnectionInfo {
+        ConnectionInfo {
+            id: format!("{}", self.id),
+            client_addr: self.client_addr.to_string(),
+            phase: format!("{:?}", self.phase),
+            duration_secs: self.duration().as_secs_f64(),
+            idle_secs: self.idle_duration().as_secs_f64(),
+            bytes_rx: self.bytes_rx,
+            bytes_tx: self.bytes_tx,
+            active_streams: self.active_streams,
+            active_udp_flows: self.active_udp_flows,
+        }
+    }
+}
+
+/// Serializable connection information for API responses
+#[derive(Debug, Clone, Serialize)]
+pub struct ConnectionInfo {
+    /// Connection ID (hex string)
+    pub id: String,
+    /// Client IP:port
+    pub client_addr: String,
+    /// Connection phase
+    pub phase: String,
+    /// Duration in seconds
+    pub duration_secs: f64,
+    /// Idle time in seconds
+    pub idle_secs: f64,
+    /// Bytes received
+    pub bytes_rx: u64,
+    /// Bytes sent
+    pub bytes_tx: u64,
+    /// Active TCP streams
+    pub active_streams: u32,
+    /// Active UDP flows
+    pub active_udp_flows: u32,
 }
 

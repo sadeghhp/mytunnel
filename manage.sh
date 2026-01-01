@@ -1,11 +1,11 @@
 #!/bin/bash
 #===============================================================================
 # MyTunnel Management Script
-# Version: 1.1.0
+# Version: 1.2.0
 # Description: Build, install, and manage the MyTunnel service locally
 #===============================================================================
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 SCRIPT_NAME=$(basename "$0")
 
 # Paths
@@ -16,6 +16,7 @@ CONFIG_DIR="/etc/mytunnel"
 CONFIG_FILE="${CONFIG_DIR}/config.toml"
 SERVICE_FILE="mytunnel.service"
 SYSTEMD_PATH="/etc/systemd/system/${SERVICE_FILE}"
+API_ADDR="127.0.0.1:9091"
 
 # Colors for output
 RED='\033[0;31m'
@@ -47,6 +48,8 @@ print_usage() {
     echo "  restart   Restart the mytunnel service"
     echo "  status    Show service status and information"
     echo "  logs      Attach to live service logs (Ctrl+C to exit)"
+    echo "  users     List connected users"
+    echo "  monitor   Live dashboard of connected users (Ctrl+C to exit)"
     echo ""
     echo -e "${CYAN}Examples:${NC}"
     echo "  ${SCRIPT_NAME} build"
@@ -54,6 +57,8 @@ print_usage() {
     echo "  ${SCRIPT_NAME} status"
     echo "  ${SCRIPT_NAME} logs"
     echo "  ${SCRIPT_NAME} logs 50      # Show last 50 lines + live"
+    echo "  ${SCRIPT_NAME} users"
+    echo "  ${SCRIPT_NAME} monitor"
 }
 
 check_cargo() {
@@ -87,6 +92,44 @@ confirm_action() {
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}Operation cancelled.${NC}"
         exit 0
+    fi
+}
+
+format_bytes() {
+    local bytes=$1
+    if [[ $bytes -ge 1073741824 ]]; then
+        echo "$(awk "BEGIN {printf \"%.2f\", $bytes/1073741824}")GB"
+    elif [[ $bytes -ge 1048576 ]]; then
+        echo "$(awk "BEGIN {printf \"%.2f\", $bytes/1048576}")MB"
+    elif [[ $bytes -ge 1024 ]]; then
+        echo "$(awk "BEGIN {printf \"%.2f\", $bytes/1024}")KB"
+    else
+        echo "${bytes}B"
+    fi
+}
+
+format_duration() {
+    local secs=$1
+    local int_secs=${secs%.*}
+    if [[ $int_secs -ge 3600 ]]; then
+        printf "%dh%dm" $((int_secs/3600)) $(((int_secs%3600)/60))
+    elif [[ $int_secs -ge 60 ]]; then
+        printf "%dm%ds" $((int_secs/60)) $((int_secs%60))
+    else
+        printf "%ds" $int_secs
+    fi
+}
+
+check_api_available() {
+    if ! command -v curl &> /dev/null; then
+        echo -e "${RED}ERROR: curl is required but not installed${NC}"
+        exit 1
+    fi
+    
+    if ! curl -s --connect-timeout 2 "http://${API_ADDR}/" &>/dev/null; then
+        echo -e "${RED}ERROR: Cannot connect to API at ${API_ADDR}${NC}"
+        echo -e "${YELLOW}Make sure the mytunnel service is running with metrics enabled${NC}"
+        exit 1
     fi
 }
 
@@ -326,6 +369,153 @@ cmd_logs() {
     journalctl -u mytunnel -f -n "${lines}" --no-pager
 }
 
+cmd_users() {
+    echo -e "${BLUE}[USERS] Connected Users${NC}"
+    echo -e "${CYAN}MyTunnel Manager v${VERSION}${NC}"
+    echo ""
+    
+    check_api_available
+    
+    # Fetch connections from API
+    local response
+    response=$(curl -s "http://${API_ADDR}/connections" 2>/dev/null)
+    
+    if [[ -z "$response" ]]; then
+        echo -e "${RED}ERROR: Failed to fetch connections${NC}"
+        exit 1
+    fi
+    
+    local count
+    count=$(echo "$response" | grep -o '"count":[0-9]*' | cut -d: -f2)
+    
+    if [[ "$count" == "0" || -z "$count" ]]; then
+        echo -e "${YELLOW}No users currently connected${NC}"
+        return 0
+    fi
+    
+    echo -e "${GREEN}Active Connections: ${count}${NC}"
+    echo ""
+    
+    # Print table header
+    printf "${CYAN}%-18s %-22s %-10s %-12s %-12s %-8s${NC}\n" \
+        "ID" "CLIENT IP" "DURATION" "RX" "TX" "STREAMS"
+    echo "--------------------------------------------------------------------------------"
+    
+    # Parse and display connections using simple parsing
+    echo "$response" | grep -oP '\{[^}]+\}' | while read -r conn; do
+        local id client_addr duration_secs bytes_rx bytes_tx streams
+        
+        id=$(echo "$conn" | grep -oP '"id"\s*:\s*"\K[^"]+')
+        client_addr=$(echo "$conn" | grep -oP '"client_addr"\s*:\s*"\K[^"]+')
+        duration_secs=$(echo "$conn" | grep -oP '"duration_secs"\s*:\s*\K[0-9.]+')
+        bytes_rx=$(echo "$conn" | grep -oP '"bytes_rx"\s*:\s*\K[0-9]+')
+        bytes_tx=$(echo "$conn" | grep -oP '"bytes_tx"\s*:\s*\K[0-9]+')
+        streams=$(echo "$conn" | grep -oP '"active_streams"\s*:\s*\K[0-9]+')
+        
+        # Format values
+        local duration_fmt rx_fmt tx_fmt
+        duration_fmt=$(format_duration "${duration_secs:-0}")
+        rx_fmt=$(format_bytes "${bytes_rx:-0}")
+        tx_fmt=$(format_bytes "${bytes_tx:-0}")
+        
+        # Truncate ID for display
+        local id_short="${id:0:16}"
+        
+        printf "%-18s %-22s %-10s %-12s %-12s %-8s\n" \
+            "${id_short}" "${client_addr}" "${duration_fmt}" "${rx_fmt}" "${tx_fmt}" "${streams:-0}"
+    done
+    
+    echo ""
+}
+
+cmd_monitor() {
+    echo -e "${BLUE}[MONITOR] Live User Dashboard${NC}"
+    echo -e "${CYAN}MyTunnel Manager v${VERSION}${NC}"
+    echo -e "${YELLOW}Press Ctrl+C to exit${NC}"
+    echo ""
+    
+    check_api_available
+    
+    # Monitor loop
+    while true; do
+        # Clear screen
+        clear
+        
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${BLUE}  MyTunnel Live Monitor v${VERSION}${NC}"
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${YELLOW}Press Ctrl+C to exit | Refresh: 2s${NC}"
+        echo ""
+        
+        # Fetch stats
+        local stats
+        stats=$(curl -s "http://${API_ADDR}/stats" 2>/dev/null)
+        
+        if [[ -n "$stats" ]]; then
+            local total active failed bytes_rx bytes_tx
+            total=$(echo "$stats" | grep -oP '"connections_total"\s*:\s*\K[0-9]+')
+            active=$(echo "$stats" | grep -oP '"connections_active"\s*:\s*\K[0-9]+')
+            failed=$(echo "$stats" | grep -oP '"connections_failed"\s*:\s*\K[0-9]+')
+            bytes_rx=$(echo "$stats" | grep -oP '"bytes_received"\s*:\s*\K[0-9]+')
+            bytes_tx=$(echo "$stats" | grep -oP '"bytes_sent"\s*:\s*\K[0-9]+')
+            
+            echo -e "${CYAN}Server Statistics:${NC}"
+            printf "  Total Connections:  ${GREEN}%s${NC}\n" "${total:-0}"
+            printf "  Active Connections: ${GREEN}%s${NC}\n" "${active:-0}"
+            printf "  Failed Connections: ${YELLOW}%s${NC}\n" "${failed:-0}"
+            printf "  Total RX:           ${GREEN}%s${NC}\n" "$(format_bytes "${bytes_rx:-0}")"
+            printf "  Total TX:           ${GREEN}%s${NC}\n" "$(format_bytes "${bytes_tx:-0}")"
+            echo ""
+        fi
+        
+        # Fetch and display connections
+        local response
+        response=$(curl -s "http://${API_ADDR}/connections" 2>/dev/null)
+        
+        local count
+        count=$(echo "$response" | grep -o '"count":[0-9]*' | cut -d: -f2)
+        
+        echo -e "${CYAN}Connected Users (${count:-0}):${NC}"
+        echo ""
+        
+        if [[ "$count" == "0" || -z "$count" ]]; then
+            echo -e "  ${YELLOW}No users currently connected${NC}"
+        else
+            # Print table header
+            printf "  ${CYAN}%-18s %-22s %-10s %-12s %-12s %-8s${NC}\n" \
+                "ID" "CLIENT IP" "DURATION" "RX" "TX" "STREAMS"
+            echo "  ------------------------------------------------------------------------------"
+            
+            # Parse and display connections
+            echo "$response" | grep -oP '\{[^}]+\}' | while read -r conn; do
+                local id client_addr duration_secs bytes_rx bytes_tx streams
+                
+                id=$(echo "$conn" | grep -oP '"id"\s*:\s*"\K[^"]+')
+                client_addr=$(echo "$conn" | grep -oP '"client_addr"\s*:\s*"\K[^"]+')
+                duration_secs=$(echo "$conn" | grep -oP '"duration_secs"\s*:\s*\K[0-9.]+')
+                bytes_rx=$(echo "$conn" | grep -oP '"bytes_rx"\s*:\s*\K[0-9]+')
+                bytes_tx=$(echo "$conn" | grep -oP '"bytes_tx"\s*:\s*\K[0-9]+')
+                streams=$(echo "$conn" | grep -oP '"active_streams"\s*:\s*\K[0-9]+')
+                
+                local duration_fmt rx_fmt tx_fmt id_short
+                duration_fmt=$(format_duration "${duration_secs:-0}")
+                rx_fmt=$(format_bytes "${bytes_rx:-0}")
+                tx_fmt=$(format_bytes "${bytes_tx:-0}")
+                id_short="${id:0:16}"
+                
+                printf "  %-18s %-22s %-10s %-12s %-12s %-8s\n" \
+                    "${id_short}" "${client_addr}" "${duration_fmt}" "${rx_fmt}" "${tx_fmt}" "${streams:-0}"
+            done
+        fi
+        
+        echo ""
+        echo -e "${BLUE}----------------------------------------${NC}"
+        echo -e "Last updated: $(date '+%Y-%m-%d %H:%M:%S')"
+        
+        sleep 2
+    done
+}
+
 #-------------------------------------------------------------------------------
 # Main Entry Point
 #-------------------------------------------------------------------------------
@@ -360,6 +550,12 @@ case "$COMMAND" in
         ;;
     logs)
         cmd_logs "$2"
+        ;;
+    users)
+        cmd_users
+        ;;
+    monitor)
+        cmd_monitor
         ;;
     -h|--help|help)
         print_usage

@@ -44,6 +44,8 @@ connection_slots = 100000
 enabled = true
 # Address for metrics HTTP server
 bind_addr = "127.0.0.1:9090"
+# Address for connections API server (/connections, /stats)
+api_bind_addr = "127.0.0.1:9091"
 
 [logging]
 # Log level: trace, debug, info, warn, error

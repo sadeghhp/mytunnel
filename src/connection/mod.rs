@@ -6,5 +6,5 @@ mod manager;
 mod state;
 
 pub use manager::{ConnectionManager, ConnectionManagerConfig};
-pub use state::{ConnectionState, ConnectionId};
+pub use state::{ConnectionId, ConnectionInfo, ConnectionState};
 

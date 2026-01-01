@@ -102,6 +102,9 @@ pub struct MetricsConfig {
     /// Metrics server bind address
     #[serde(default = "default_metrics_addr")]
     pub bind_addr: SocketAddr,
+    /// API server bind address (for /connections, /stats endpoints)
+    #[serde(default = "default_api_addr")]
+    pub api_bind_addr: SocketAddr,
 }
 
 /// Logging configuration
@@ -141,6 +144,7 @@ fn default_buffer_count_16k() -> usize { 4096 }
 fn default_buffer_count_64k() -> usize { 1024 }
 fn default_connection_slots() -> usize { 100_000 }
 fn default_metrics_addr() -> SocketAddr { "127.0.0.1:9090".parse().unwrap() }
+fn default_api_addr() -> SocketAddr { "127.0.0.1:9091".parse().unwrap() }
 fn default_log_level() -> String { "info".to_string() }
 fn default_log_format() -> String { "json".to_string() }
 fn default_max_new_conn() -> u32 { 10_000 }

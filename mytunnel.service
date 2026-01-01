@@ -1,0 +1,19 @@
+[Unit]
+Description=MyTunnel High-Performance QUIC Tunnel Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/etc/mytunnel
+ExecStart=/usr/local/bin/mytunnel-server /etc/mytunnel/config.toml
+Restart=always
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+
+
+
